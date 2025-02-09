@@ -124,6 +124,22 @@ class Messages:
                 "dev_cla": "power",
                 "unit_of_meas": "W",
                 "name": "Pump Power"
+            },
+            "on_p": {
+                "id": f"{ identifier }_sensor_pool_on",
+                "state": States.POOL,
+                "p": "binary_sensor",
+                "dev_cla": "running",
+                "unit_of_meas": None,
+                "name": "Pool On"
+            },
+            "on_s": {
+                "id": f"{ identifier }_sensor_spa_on",
+                "state": States.SPA,
+                "p": "binary_sensor",
+                "dev_cla": "running",
+                "unit_of_meas": None,
+                "name": "Spa On"
             }
         }
     
@@ -165,7 +181,10 @@ class Messages:
             "sysm": ', '.join(sysm)
         }
         for k, v in self._sensor_dict.items():
-            state[k] = getattr(panel, v['attr'])
+            if 'attr' in v:
+                state[k] = getattr(panel, v['attr'])
+            if 'state' in v:
+                state[k] = self._onoff[panel.get_state(v['state'])]
 
         for k, v in self._control_dict.items():
             state[k] = self._onoff[panel.get_state(v['state'])]
