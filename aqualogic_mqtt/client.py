@@ -1,8 +1,7 @@
-import threading
 import logging
 import sys
 import ssl
-from time import sleep
+from time import sleep, time
 import os
 import argparse
 
@@ -28,16 +27,16 @@ class Client:
     _paho_client = None
     _panel_thread = None
     _formatter = None
-    _pman = None
     _disconnect_retries = 3
     _disconnect_retry_wait_max = 30
     _disconnect_retry_wait = 1
     _disconnect_retry_num = 0
+    _hb_time = 0
+    _panel_timeout = 0
 
-    def __init__(self, formatter:Messages, panel_manager:PanelManager, client_id=None, transport='tcp', protocol_num=5):
+    def __init__(self, formatter:Messages, panel_timeout:(float)=0, client_id=None, transport='tcp', protocol_num=5):
         self._formatter = formatter
-        self._pman = panel_manager
-        self._panel = AquaLogic(web_port=0)
+        self._panel_timeout = panel_timeout
 
         protocol = mqtt.MQTTv311 if protocol_num == 3 else mqtt.MQTTv5
         self._paho_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
@@ -48,18 +47,21 @@ class Client:
         self._paho_client.on_disconnect = self._on_disconnect
         self._paho_client.on_connect_fail = self._on_connect_fail
 
-    # Respond to panel events
-    def _panel_changed(self, panel):
+    # PanelManager Delegate Protocol
+    def handle_panel_changed(self, panel):
         logger.debug(f"_panel_changed called... Publishing to {self._formatter.get_state_topic()}...")
-        self._pman.observe_system_message(panel.check_system_msg)
-        msg = self._formatter.get_state_message(panel, self._pman)
+        #self._pman.observe_system_message(panel.check_system_msg)
+        msg = self._formatter.get_state_message()
         logger.debug(msg)
         self._paho_client.publish(self._formatter.get_state_topic(), msg)
+
+    def set_heartbeat_time(self, hb_time):
+        self._hb_time = hb_time
 
     # Respond to MQTT events    
     def _on_message(self, client, userdata, msg):
         logger.debug(f"_on_message called for topic {msg.topic} with payload {msg.payload}")
-        new_messages = self._formatter.handle_message_on_topic(msg.topic, str(msg.payload.decode("utf-8")), self._panel)
+        new_messages = self._formatter.handle_message_on_topic(msg.topic, str(msg.payload.decode("utf-8")))
         for t, m in new_messages:
             self._paho_client.publish(t, m)
 
@@ -110,14 +112,6 @@ class Client:
             if reason_code > 0:
                 logger.error(f"MQTT Disconnected: {reason_code}")
 
-    def panel_connect(self, source):
-        if ':' in source:
-            s_host, s_port = source.split(':')
-            self._panel.connect(s_host, int(s_port))
-        else:
-            self._panel.connect_serial(source)
-        ...
-
     def mqtt_username_pw_set(self, username:(str), password:(str)):
         return self._paho_client.username_pw_set(username=username, password=password)
 
@@ -138,14 +132,12 @@ class Client:
     def loop_forever(self):
         try:
             self._paho_client.loop_start()
-            self._panel_thread = threading.Thread(target=self._panel.process, args=[self._panel_changed])
-            self._panel_thread.daemon = True # https://stackoverflow.com/a/50788759/489116 ?
-            self._panel_thread.start()
             #self._paho_client.loop_forever()
             while True:
-                logger.debug(f"Update age: {self._pman.get_last_update_age()}")
-                if not self._pman.is_updating():
-                    logger.critical("Panel not updated in "+str(self._pman.get_last_update_age())+"s, exiting!")
+                hb_age = time() - self._hb_time
+                logger.debug(f"Update age: {hb_age}")
+                if hb_age > self._panel_timeout:
+                    logger.critical("Panel not updated in "+str(hb_age)+"s, exiting!")
                     raise RuntimeError("Panel stopped updating!")
                 sleep(1)
         finally:
@@ -220,18 +212,20 @@ if __name__ == "__main__":
     source = args.serial if args.serial is not None else args.tcp
     dest = args.mqtt_dest
 
-    pman = PanelManager(args.source_timeout, args.system_message_expiration)
-    # Monkey-patch PanelManager into _web so we can avoid running the web server without an error
-    AquaLogic._web = pman
+    pman = PanelManager(args.system_message_expiration)
     
     formatter = Messages(identifier="aqualogic", discover_prefix=args.discover_prefix,
+                         panel_manager=pman,
                          enable=args.enable if args.enable is not None else [], 
                          system_message_sensors=args.system_message_sensor if args.system_message_sensor is not None else [])
     
-    mqtt_client = Client(formatter=formatter, panel_manager=pman,
+    mqtt_client = Client(formatter=formatter, panel_timeout=args.source_timeout, 
                          client_id=args.mqtt_clientid, transport=args.mqtt_transport, 
                          protocol_num=args.mqtt_version
                          )
+    
+    pman.add_delegate(mqtt_client)
+
     if args.mqtt_username is not None:
         mqtt_password = args.mqtt_password if args.mqtt_password is not None else mqtt_password
         mqtt_client.mqtt_username_pw_set(args.mqtt_username, mqtt_password)
@@ -241,7 +235,7 @@ if __name__ == "__main__":
     print("Connecting MQTT...")
     mqtt_client.mqtt_connect(dest=dest)
     print("Connecting Controller...")
-    mqtt_client.panel_connect(source)
+    pman.panel_connect(source)
     print("Starting loop...")
     mqtt_client.loop_forever()
 
