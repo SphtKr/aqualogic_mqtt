@@ -41,7 +41,7 @@ class PanelManager:
         self._delegates.append(delegate)
         delegate.set_heartbeat_time(time.time())
 
-    def observe_system_message(self, message:(str)):
+    def _observe_system_message(self, message:(str)):
         if message is None:
             return
         message = message.strip(' \x00')
@@ -57,12 +57,15 @@ class PanelManager:
         for d in self._delegates:
             d.handle_panel_changed(panel)
 
+    def set_state(self, state, enable):
+        self._panel.set_state(state, enable)
+
     # This is a method with the same name/sig as one in aqualogic.web.WebServer. This
     # allows 1: monkey-patching this class into aqualogic to allow the process loop to
     # function without its web server running, 2: us to pick up activity and screen
     # updates from the panel (e.g. to determine if the connection is lost).
     def text_updated(self, str):
-        self.observe_system_message(self._panel.check_system_msg)
+        self._observe_system_message(self._panel.check_system_msg)
         logger.debug(f"text_updated: {str}")
         for d in self._delegates:
             d.set_heartbeat_time(time.time())

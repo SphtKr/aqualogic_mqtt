@@ -206,7 +206,7 @@ class Messages:
         state_dict_filtered = { k:v for (k,v) in self._control_dict.items() if f"{self._root}/{v['id']}/set" == topic }
         logger.debug(f"{state_dict_filtered=}")
         for k,v in state_dict_filtered.items(): # Really there will be only one...
-            self._pman.get_panel().set_state(v['state'], True if msg == "ON" else False)
+            self._pman.set_state(v['state'], True if msg == "ON" else False)
             return []
 
     def get_discovery_message(self):
