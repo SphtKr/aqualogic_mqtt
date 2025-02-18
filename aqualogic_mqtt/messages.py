@@ -39,6 +39,8 @@ class Messages:
             #"cs": { "state": States.CHECK_SYSTEM, "id": f"{ identifier }_binary_sensor_check_system", "name": "Check System" },
             "l": { "state": States.LIGHTS, "id": f"{ identifier }_light_lights", "name": "Lights" },
             "f": { "state": States.FILTER, "id": f"{ identifier }_switch_filter", "name": "Filter" },
+            "pool": { "state": States.POOL, "id": f"{ identifier }_switch_pool", "name": "Pool" }, # See #5
+            "spa": { "state": States.SPA, "id": f"{ identifier }_switch_spa", "name": "Spa" }, # See #5
             "aux1": { "state": States.AUX_1, "id": f"{ identifier }_switch_aux_1", "name": "Aux 1" },
             "aux2": { "state": States.AUX_2, "id": f"{ identifier }_switch_aux_2", "name": "Aux 2" },
             "aux3": { "state": States.AUX_3, "id": f"{ identifier }_switch_aux_3", "name": "Aux 3" },
@@ -126,22 +128,6 @@ class Messages:
                 "dev_cla": "power",
                 "unit_of_meas": "W",
                 "name": "Pump Power"
-            },
-            "on_p": {
-                "id": f"{ identifier }_sensor_pool_on",
-                "state": States.POOL,
-                "p": "binary_sensor",
-                "dev_cla": "running",
-                "unit_of_meas": None,
-                "name": "Pool On"
-            },
-            "on_s": {
-                "id": f"{ identifier }_sensor_spa_on",
-                "state": States.SPA,
-                "p": "binary_sensor",
-                "dev_cla": "running",
-                "unit_of_meas": None,
-                "name": "Spa On"
             }
         }
     
