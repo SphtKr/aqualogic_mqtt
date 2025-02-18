@@ -15,12 +15,14 @@ class Messages:
     _system_message_sensor_dict = None
     _ha_status_path = None
     _onoff = {False: "OFF", True: "ON"}
+    _pman = None
     
-    def __init__(self, identifier, discover_prefix, enable, system_message_sensors):
+    def __init__(self, identifier, discover_prefix, enable, system_message_sensors, panel_manager):
         self._identifier = identifier #TODO: Sanitize?
         self._discover_prefix = discover_prefix #TODO: Sanitize?
         self._root = f"{self._discover_prefix}/device/{self._identifier}"
         self._ha_status_path = f"{self._discover_prefix}/status" #TODO: Make path configurable
+        self._pman = panel_manager
 
         self._control_dict = { k:v for k,v in Messages.get_control_dict(self._identifier).items() if k in enable }
         self._sensor_dict = { k:v for k,v in Messages.get_sensor_dict(self._identifier).items() if k in enable }
@@ -37,6 +39,8 @@ class Messages:
             #"cs": { "state": States.CHECK_SYSTEM, "id": f"{ identifier }_binary_sensor_check_system", "name": "Check System" },
             "l": { "state": States.LIGHTS, "id": f"{ identifier }_light_lights", "name": "Lights" },
             "f": { "state": States.FILTER, "id": f"{ identifier }_switch_filter", "name": "Filter" },
+            "pool": { "state": States.POOL, "id": f"{ identifier }_switch_pool", "name": "Pool" }, # See #5
+            "spa": { "state": States.SPA, "id": f"{ identifier }_switch_spa", "name": "Spa" }, # See #5
             "aux1": { "state": States.AUX_1, "id": f"{ identifier }_switch_aux_1", "name": "Aux 1" },
             "aux2": { "state": States.AUX_2, "id": f"{ identifier }_switch_aux_2", "name": "Aux 2" },
             "aux3": { "state": States.AUX_3, "id": f"{ identifier }_switch_aux_3", "name": "Aux 3" },
@@ -157,15 +161,19 @@ class Messages:
     def get_state_topic(self):
         return f"{self._root}/state"
     
-    def get_state_message(self, panel, panel_manager:(PanelManager)):
-        sysm = panel_manager.get_system_messages()
+    def get_state_message(self):
+        sysm = self._pman.get_system_messages()
+        panel = self._pman.get_panel()
 
         state = {
             "cs": self._onoff[panel.get_state(States.CHECK_SYSTEM)],
             "sysm": ', '.join(sysm)
         }
         for k, v in self._sensor_dict.items():
-            state[k] = getattr(panel, v['attr'])
+            if 'attr' in v:
+                state[k] = getattr(panel, v['attr'])
+            if 'state' in v:
+                state[k] = self._onoff[panel.get_state(v['state'])]
 
         for k, v in self._control_dict.items():
             state[k] = self._onoff[panel.get_state(v['state'])]
@@ -177,14 +185,14 @@ class Messages:
     
     #TODO: ^ and v move out of this class, to divorce it from Aqualogic panel?
 
-    def handle_message_on_topic(self, topic, msg, panel):
+    def handle_message_on_topic(self, topic, msg):
         if topic == self._ha_status_path and msg == "online": #TODO: Make configurable?
             return [(self.get_discovery_topic(), self.get_discovery_message())] 
         
         state_dict_filtered = { k:v for (k,v) in self._control_dict.items() if f"{self._root}/{v['id']}/set" == topic }
         logger.debug(f"{state_dict_filtered=}")
         for k,v in state_dict_filtered.items(): # Really there will be only one...
-            panel.set_state(v['state'], True if msg == "ON" else False)
+            self._pman.set_state(v['state'], True if msg == "ON" else False)
             return []
 
     def get_discovery_message(self):
