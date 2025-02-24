@@ -166,6 +166,9 @@ if __name__ == "__main__":
     #TODO: metavar here is a bit of a kludge and the help text isn't 100% correct!
     g_group.add_argument('-sms', '--system-message-sensor', nargs="+", type=str, action="append", metavar=("STRING", "KEY [DEV_CLASS]"),
         help="add a binary sensor that is ON when a given \"Check System\" message appears on the display, with the specified message STRING which will use the MQTT state KEY and optionally device class DEV_CLASS (default is \"problem\")--may be specified multiple times")
+    #TODO: metavar here is a bit of a kludge and the help text isn't 100% correct!
+    g_group.add_argument('-tms', '--text-message-sensor', nargs="+", type=str, action="append", metavar=("STRING", "KEY [DEV_CLASS]"),
+        help="add a binary sensor that is ON when a given STRING message appears on the display, which will use the MQTT state KEY and optionally device class DEV_CLASS (default is \"problem\")--may be specified multiple times")
     g_group.add_argument('-v', '--verbose', action="count", default=0,
         help="seconds after which a Check System message previously seen is dropped from reporting")
 
@@ -212,12 +215,16 @@ if __name__ == "__main__":
     source = args.serial if args.serial is not None else args.tcp
     dest = args.mqtt_dest
 
-    pman = PanelManager(args.system_message_expiration)
+    pman = PanelManager(args.system_message_expiration,
+                        text_message_sensors=args.text_message_sensor if args.text_message_sensor is not None else []
+                        )
     
     formatter = Messages(identifier="aqualogic", discover_prefix=args.discover_prefix,
                          panel_manager=pman,
                          enable=args.enable if args.enable is not None else [], 
-                         system_message_sensors=args.system_message_sensor if args.system_message_sensor is not None else [])
+                         system_message_sensors=args.system_message_sensor if args.system_message_sensor is not None else [],
+                         text_message_sensors=args.text_message_sensor if args.text_message_sensor is not None else []
+                         )
     
     mqtt_client = Client(formatter=formatter, panel_timeout=args.source_timeout, 
                          client_id=args.mqtt_clientid, transport=args.mqtt_transport, 

@@ -17,7 +17,7 @@ class Messages:
     _onoff = {False: "OFF", True: "ON"}
     _pman = None
     
-    def __init__(self, identifier, discover_prefix, enable, system_message_sensors, panel_manager):
+    def __init__(self, identifier, discover_prefix, enable, system_message_sensors, text_message_sensors, panel_manager):
         self._identifier = identifier #TODO: Sanitize?
         self._discover_prefix = discover_prefix #TODO: Sanitize?
         self._root = f"{self._discover_prefix}/device/{self._identifier}"
@@ -27,6 +27,7 @@ class Messages:
         self._control_dict = { k:v for k,v in Messages.get_control_dict(self._identifier).items() if k in enable }
         self._sensor_dict = { k:v for k,v in Messages.get_sensor_dict(self._identifier).items() if k in enable }
         self._system_message_sensor_dict = Messages.get_system_message_sensor_dict(self._identifier, system_message_sensors)
+        self._text_message_sensor_dict = Messages.get_system_message_sensor_dict(self._identifier, text_message_sensors)
     
     def get_id_for_string(input:(str)):
         return '_'.join(''.join(map(
@@ -162,12 +163,11 @@ class Messages:
         return f"{self._root}/state"
     
     def get_state_message(self):
-        sysm = self._pman.get_system_messages()
         panel = self._pman.get_panel()
 
         state = {
             "cs": self._onoff[panel.get_state(States.CHECK_SYSTEM)],
-            "sysm": ', '.join(sysm)
+            "sysm": ', '.join(self._pman.get_messages(is_system=True))
         }
         for k, v in self._sensor_dict.items():
             if 'attr' in v:
@@ -179,7 +179,10 @@ class Messages:
             state[k] = self._onoff[panel.get_state(v['state'])]
 
         for k, v in self._system_message_sensor_dict.items():
-            state[k] = self._onoff[v["name"] in sysm]
+            state[k] = self._onoff[self._pman.has_message(v["name"], is_system=True)]
+
+        for k, v in self._text_message_sensor_dict.items():
+            state[k] = self._onoff[self._pman.has_message(v["name"], is_system=False)]
 
         return json.dumps(state)
     
@@ -260,7 +263,7 @@ class Messages:
                 del cmp['dev_cla']
             p['cmps'][v["id"]] = cmp
 
-        for k,v in self._system_message_sensor_dict.items():
+        for k,v in (self._text_message_sensor_dict | self._system_message_sensor_dict).items():
             cmp = {
                 "p": "binary_sensor",
                 "dev_cla": v["dev_cla"],
