@@ -129,13 +129,13 @@ The full list of valid keys is shown in the table below and can be printed by us
 | hauto | Heater Auto Mode
 | sc | Super Chlorinate
 
-### System Message Sensors
+### Message Sensors
 
-#### String Sensor
+#### System Message String Sensor
 
 By default, a string sensor is added that includes all "Check System" messages that are deemed "active," separated by `, `. Messages are "active" if they have been seen within a time window that defaults to the last three minutes. 
 
-#### Binary Sensors
+#### System Message Binary Sensors
 
 Additional binary sensors can be created based on strings that appear as "Check System" messages by using the `-sms`/`--system-message-sensor` option. Minimally, the desired message string must be passed as the first argument to the `-sms` option. An optional second argument specifies a (usually shorter) "key" to use in the MQTT state payload for the sensor. An optional third argument can be used to specify a different [Home Assistant Device Class](https://www.home-assistant.io/integrations/binary_sensor/#device-class) for the sensor (the default is `problem`).
 
@@ -145,7 +145,19 @@ python -m aqualogic_mqtt.client -sms "Inspect Cell" ic -s /dev/ttyUSB0 -m localh
 ```
 Would add a binary sensor that is "ON" when the text "Check System Inspect Cell" appears on the screen.
 
-The `-sms` option can be specified multiple times to add additional sensors. The string provided should _exactly match_ the text that appears after "Check System" on the display. If a "key" is specified, it must not conflict with any of the keys for existing devices listed above (nor can it be `cs` or `sysm`).
+The `-sms` option can be specified multiple times to add additional sensors. The string provided should _exactly match_ the text that appears after "Check System" on the display, including letter case. If a "key" is specified, it must not conflict with any of the keys for existing devices listed above (nor can it be `cs` or `sysm`).
+
+#### Text Message Binary Sensors
+
+You can also create binary sensors that activate if a specific text message appears _anywhere_ the controller display. Do this with the `-tms`/`--text-message-sensor` option. The syntax is the same as the `--system-message-sensor` option above.
+
+For example, the following command...
+```
+python -m aqualogic_mqtt.client -tms "Freeze Warning" frz cold -s /dev/ttyUSB0 -m localhost:1883
+```
+Would add a binary sensor that is "ON" when the text "Freeze warning" appears on the screen.
+
+Note that unlike `--system-message-sensor`, this option matches regardless of letter case and whitespace (including line breaks), and can be any substring of the text that appears on the screen--e.g. the string `Freeze Warning` does not perfectly match the screen message that appears when freeze protection is active, which is actually `Freeze warning` / `Filter On`. The spacing and capitalization specified in the command will determine the appearance of the entity name in Home Assistant. Also, note that the command above gives an example of using an alternate Home Assistant device class, in this case, `cold`.
 
 #### Adjusting the active time window
 
