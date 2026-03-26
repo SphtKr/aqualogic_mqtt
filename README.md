@@ -106,6 +106,9 @@ The full list of valid keys is shown in the table below and can be printed by us
 | salt | Salt Level
 | s_p | Pump Speed
 | p_p | Pump Power
+| svc_on | Service Mode (sensor only)
+| pool | Pool (switch)
+| spa | Spa (switch)
 | l | Lights
 | f | Filter
 | aux1 | Aux 1

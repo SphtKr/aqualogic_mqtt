@@ -129,6 +129,14 @@ class Messages:
                 "dev_cla": "power",
                 "unit_of_meas": "W",
                 "name": "Pump Power"
+            },
+            "svc_on": {
+                "id": f"{ identifier }_sensor_service_on",
+                "state": States.SERVICE,
+                "p": "sensor",
+                "dev_cla": None,
+                "unit_of_meas": None,
+                "name": "Service On"
             }
         }
     
