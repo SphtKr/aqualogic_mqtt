@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -23,7 +24,7 @@ class MqttCompatibilityTest(unittest.TestCase):
         self.messages = Messages(
             identifier="aqualogic",
             discover_prefix="homeassistant",
-            enable=["l", "f", "aux1", "aux2", "hauto", "pool", "spa"],
+            enable=["l", "f", "aux1", "aux2", "hauto", "pool", "spa", "spill"],
             system_message_sensors=[],
         )
 
@@ -37,6 +38,7 @@ class MqttCompatibilityTest(unittest.TestCase):
             "aqualogic_switch_heater_auto": "homeassistant/device/aqualogic/aqualogic_switch_heater_auto/set",
             "aqualogic_switch_pool": "homeassistant/device/aqualogic/aqualogic_switch_pool/set",
             "aqualogic_switch_spa": "homeassistant/device/aqualogic/aqualogic_switch_spa/set",
+            "aqualogic_switch_spillover": "homeassistant/device/aqualogic/aqualogic_switch_spillover/set",
         }
         for component_id, topic in expected.items():
             self.assertEqual(discovery["cmps"][component_id]["cmd_t"], topic)
@@ -59,6 +61,28 @@ class MqttCompatibilityTest(unittest.TestCase):
         spa = "homeassistant/device/aqualogic/aqualogic_switch_spa/set"
         self.assertEqual(mqtt_automation_command(spa, "ON"), ("mode", "spa"))
         self.assertEqual(mqtt_automation_command(spa, "OFF"), ("mode", "pool"))
+        spillover = "homeassistant/device/aqualogic/aqualogic_switch_spillover/set"
+        self.assertEqual(mqtt_automation_command(spillover, "ON"), ("mode", "spillover"))
+        self.assertEqual(mqtt_automation_command(spillover, "OFF"), ("mode", "pool"))
+
+    def test_hubitat_driver_exposes_explicit_mode_buttons(self):
+        root = Path(__file__).parent / "hubitat_driver"
+        for name in (
+            "driver_MQTT_aqualogic_parent_children.groovy",
+            "Hubitat_Aqualogic_MQTT.txt",
+        ):
+            source = (root / name).read_text(encoding="utf-8")
+            for marker in (
+                '["mode_pool", "Pool"]',
+                '["mode_spa", "Spa"]',
+                '["mode_spillover", "Spa Spillover"]',
+                '"Generic Component Button Controller"',
+                "void componentPush(cd, buttonNumber)",
+                "case 'mode_pool': return (poolModeCmdTopic ?: null)",
+                "case 'mode_spa': return (spaModeCmdTopic ?: null)",
+                "case 'mode_spillover': return (spilloverModeCmdTopic ?: null)",
+            ):
+                self.assertIn(marker, source, f"{marker!r} missing from {name}")
 
     def test_hubitat_auto_heat_updates_persistent_pool_heat_preference(self):
         automation = MagicMock()
@@ -67,6 +91,26 @@ class MqttCompatibilityTest(unittest.TestCase):
         with patch.object(controls, "_automation", automation):
             self.assertTrue(handle_automation_mqtt(topic, "ON"))
         automation.set_pool_heat.assert_called_once_with(True)
+        automation.set_manual.assert_not_called()
+
+    def test_hubitat_modes_use_semantic_controller_without_automation(self):
+        automation = MagicMock()
+        automation.is_enabled.return_value = False
+        equipment = MagicMock()
+        with (
+            patch.object(controls, "_automation", automation),
+            patch.object(controls, "_equipment", equipment),
+        ):
+            for suffix, target in (
+                ("pool", "pool"),
+                ("spa", "spa"),
+                ("spillover", "spillover"),
+            ):
+                with self.subTest(target=target):
+                    topic = f"homeassistant/device/aqualogic/aqualogic_switch_{suffix}/set"
+                    self.assertTrue(handle_automation_mqtt(topic, "ON"))
+                    equipment.request_mode.assert_called_once_with(target)
+                    equipment.reset_mock()
         automation.set_manual.assert_not_called()
 
 

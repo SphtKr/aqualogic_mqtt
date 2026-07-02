@@ -17,6 +17,9 @@ host boundary, endpoints, and safety invariants.
 - After an approved scheduled/manual spa decision, call the PLPLUS session API.
 - Hubitat remains a HomeKit control surface; do not use its pool macros for
   OpenClaw automation.
+- Hubitat's momentary Pool, Spa, and Spa Spillover children publish explicit
+  semantic mode targets through the existing MQTT topics. They are manual
+  controls, not scheduler inputs.
 
 ## PLPLUS endpoint
 

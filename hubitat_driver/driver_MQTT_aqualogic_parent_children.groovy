@@ -6,7 +6,7 @@
  *  and mirrors them to component child devices.
  *
  *  Author: alwineinger + ChatGPT helper
- *  Updated: 2025-09-04
+ *  Updated: 2026-07-02
  */
 
 import groovy.json.JsonSlurper
@@ -82,6 +82,9 @@ metadata {
         input name: "heaterAutoCmdTopic", type: "string", title: "Command Topic – Heater Auto (ON/OFF)", defaultValue: "homeassistant/device/aqualogic/aqualogic_switch_heater_auto/set", required: false
         input name: "poolSpaToggleTopic", type: "string", title: "Command Topic – Pool/Spa Toggle (button; PRESS)", defaultValue: "homeassistant/device/aqualogic/aqualogic_button_pool_spa_toggle/set", required: false
         input name: "filterCmdTopic", type: "string", title: "Command Topic – Filter (ON/OFF)", defaultValue: "homeassistant/device/aqualogic/aqualogic_switch_filter/set", required: false
+        input name: "poolModeCmdTopic", type: "string", title: "Command Topic – Pool Mode (button)", defaultValue: "homeassistant/device/aqualogic/aqualogic_switch_pool/set", required: false
+        input name: "spaModeCmdTopic", type: "string", title: "Command Topic – Spa Mode (button)", defaultValue: "homeassistant/device/aqualogic/aqualogic_switch_spa/set", required: false
+        input name: "spilloverModeCmdTopic", type: "string", title: "Command Topic – Spa Spillover Mode (button)", defaultValue: "homeassistant/device/aqualogic/aqualogic_switch_spillover/set", required: false
 
         input name: "cmdOnPayload", type: "string", title: "ON payload (default = ON)", defaultValue: "ON", required: false
         input name: "cmdOffPayload", type: "string", title: "OFF payload (default = OFF)", defaultValue: "OFF", required: false
@@ -130,6 +133,14 @@ def initialize() {
             ["v4","V4"], ["h1","H1"], ["hauto","HAUTO"], ["sc","SC"],
             ["pool","POOL"], ["spa","SPA"]
         ].each { arr -> ensureChild(arr[0], "Generic Component Switch", "${device.displayName} ${arr[1]}") }
+        [
+            ["mode_pool", "Pool"],
+            ["mode_spa", "Spa"],
+            ["mode_spillover", "Spa Spillover"]
+        ].each { arr ->
+            ensureChild(arr[0], "Generic Component Button Controller", "${device.displayName} ${arr[1]}")
+            sendChildEvt(arr[0], "numberOfButtons", 1)
+        }
     }
 
     // MQTT connect
@@ -543,6 +554,9 @@ private String commandTopicForSuffix(String suffix) {
         case 'aux2':  return (aux2CmdTopic ?: null)
         case 'hauto': return (heaterAutoCmdTopic ?: null)
         case 'filter': return (filterCmdTopic ?: null)
+        case 'mode_pool': return (poolModeCmdTopic ?: null)
+        case 'mode_spa': return (spaModeCmdTopic ?: null)
+        case 'mode_spillover': return (spilloverModeCmdTopic ?: null)
         // Optional: using either pool or spa child as a trigger for the toggle button
         case 'pool':
         case 'spa':   return (poolSpaToggleTopic ?: null)
@@ -606,6 +620,26 @@ void componentOff(cd) {
         return
     }
     mqttPublish(topic, (cmdOffPayload ?: 'OFF'))
+}
+
+void componentPush(cd, buttonNumber) {
+    String suffix = suffixFromChild(cd)
+    if (logEnable) log.debug "componentPush from ${cd.displayName} (suffix=${suffix}, button=${buttonNumber})"
+    if (!(suffix in ['mode_pool', 'mode_spa', 'mode_spillover'])) {
+        log.info "Ignoring unsupported component button '${suffix}'"
+        return
+    }
+    if ((buttonNumber as Integer) != 1) {
+        log.info "Ignoring button ${buttonNumber} for '${suffix}'; only button 1 is supported"
+        return
+    }
+    String topic = commandTopicForSuffix(suffix)
+    if (!topic) {
+        log.info "No command topic configured for '${suffix}' – ignoring push()"
+        return
+    }
+    // Mode buttons are explicit targets carried on the existing switch topics.
+    mqttPublish(topic, (cmdOnPayload ?: 'ON'))
 }
 
 // Manual test: inject a known-good payload into parse()

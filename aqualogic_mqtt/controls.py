@@ -258,24 +258,29 @@ def mqtt_automation_command(topic: str, payload: str) -> Optional[tuple[str, obj
         return ("mode", "pool")
     if str(topic).endswith("aqualogic_switch_spa/set"):
         return ("mode", "spa" if enabled else "pool")
+    if str(topic).endswith("aqualogic_switch_spillover/set"):
+        return ("mode", "spillover" if enabled else "pool")
     return None
 
 def handle_automation_mqtt(topic: str, payload: str) -> bool:
-    if _automation is None or not _automation.is_enabled():
-        return False
     command = mqtt_automation_command(topic, payload)
     if command is None:
         return False
     kind, value = command
     if kind == "mode":
-        _automation.set_manual(mode=value)
-    else:
-        control, enabled = value
-        if control == "auto_heat":
-            _automation.set_pool_heat(enabled)
-            return True
-        field = "filter_on" if control == "filter" else control
-        _automation.set_manual(**{field: enabled})
+        # Mode commands always use the semantic controller. This is required
+        # for explicit Spillover, which is a guarded two-key transition rather
+        # than a state bit supported by pyAqualogic.set_state().
+        request_equipment_mode(value)
+        return True
+    if _automation is None or not _automation.is_enabled():
+        return False
+    control, enabled = value
+    if control == "auto_heat":
+        _automation.set_pool_heat(enabled)
+        return True
+    field = "filter_on" if control == "filter" else control
+    _automation.set_manual(**{field: enabled})
     return True
 
 # Convenience for when only text is known

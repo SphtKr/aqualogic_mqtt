@@ -357,12 +357,21 @@ Filter, Lights, Blower, and Heater Relay fields), not only its pump-speed field;
 durable Pool Heat and calendar Spa sessions are separate state and are retained.
 
 Existing Home Assistant/Hubitat discovery IDs and command topics are unchanged.
+The Hubitat parent driver also creates three momentary component buttons named
+Pool, Spa, and Spa Spillover. Each publishes `ON` to the corresponding existing
+mode switch topic, so it requests an explicit target rather than replaying the
+raw Pool/Spa toggle. Existing Pool/Spa/Spillover state children remain in place
+for compatibility. Saving or reinitializing the updated parent driver creates
+the new button children.
 While host automation is enabled, Filter, Lights, Aux1/Blower, Aux2/Heater
-Relay, Auto Heat, Pool, and Spa commands on those topics remain supported.
+Relay, Auto Heat, Pool, Spa, and Spa Spillover commands on those topics remain
+supported.
 Auto Heat updates the durable Pool Heat preference; the others become persisted
 manual overrides, preserving HomeKit control without bypassing priority or
-Service-mode interlocks. With automation disabled, the legacy direct MQTT path
-is unchanged.
+Service-mode interlocks. Mode topics always use the semantic mode controller,
+including when host automation is disabled, so Spillover retains its guarded
+transition and confirmation behavior. Other disabled-automation commands retain
+the legacy direct MQTT path.
 
 Once weekly, normal-schedule operation compares the cached PL-PLUS clock with
 the system clock. A difference of one minute or more triggers a guarded
