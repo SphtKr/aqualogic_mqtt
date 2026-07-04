@@ -10,6 +10,8 @@ class PanelManager:
     _timeout = None
     _exp_s = None
     _last_text_update = None
+    _last_heartbeat_log = 0.0
+    HEARTBEAT_INTERVAL_S = 5.0
 
     def __init__(self, connect_timeout:(int), message_exp_seconds:(int)):
         self._last_text_update = time.time()
@@ -43,7 +45,11 @@ class PanelManager:
     # function without its web server running, 2: us to pick up activity and screen
     # updates from the panel (e.g. to determine if the connection is lost).
     def text_updated(self, str):
-        self._last_text_update = time.time()
+        now = time.time()
+        self._last_text_update = now
+        if now - self._last_heartbeat_log > self.HEARTBEAT_INTERVAL_S:
+            self._last_heartbeat_log = now
+            logger.debug("panel heartbeat: alive, last update reset")
         logger.debug(f"text_updated: {str}")
         try:
             # Collapse raw text into a single line, strip NULs and padding

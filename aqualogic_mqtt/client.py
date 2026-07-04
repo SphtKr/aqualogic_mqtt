@@ -315,6 +315,10 @@ class Client:
         logger.debug(f"Connected to {host}:{port} with result {r}")
 
     def loop_forever(self):
+        reconnect_attempts = 0
+        MAX_RECONNECT_ATTEMPTS = 5
+        RECONNECT_SLEEP_S = 5
+
         try:
             self._paho_client.loop_start()
             self._panel_thread = threading.Thread(target=self._panel.process, args=[self._panel_changed])
@@ -327,8 +331,22 @@ class Client:
                 self._automation.tick()
                 logger.debug(f"Update age: {self._pman.get_last_update_age()}")
                 if not self._pman.is_updating():
-                    logger.critical("Panel not updated in "+str(self._pman.get_last_update_age())+"s, exiting!")
-                    raise RuntimeError("Panel stopped updating!")
+                    age = self._pman.get_last_update_age()
+                    if reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+                        reconnect_attempts += 1
+                        logger.critical(
+                            f"Panel not updated in {age:.1f}s; reconnect attempt "
+                            f"{reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS} after {RECONNECT_SLEEP_S}s sleep"
+                        )
+                        sleep(RECONNECT_SLEEP_S)
+                        continue
+                    logger.critical(
+                        f"Panel not updated in {age:.1f}s after {MAX_RECONNECT_ATTEMPTS} reconnect attempts; giving up"
+                    )
+                    raise RuntimeError("Panel stopped updating after reconnect attempts")
+                if reconnect_attempts > 0:
+                    logger.info("Panel recovered; resetting reconnect counter")
+                    reconnect_attempts = 0
                 sleep(1)
         finally:
             self._paho_client.loop_stop()
