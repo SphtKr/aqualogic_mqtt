@@ -304,9 +304,11 @@ and active priority source at `/api/automation`.
 `heater_running` LED state used by HAL for heating confirmation and health.
 Auto Heat is not reconciled until the PL-PLUS Heater1 display page confirms its
 mode; the upstream library's unconfirmed startup default is never allowed to
-generate a heater keypress. An accepted Auto Heat command is issued once and
-held pending until the Heater1 page confirms it, preventing repeated toggle
-keys.
+generate a heater keypress for non-calendar sources (`3b254c6`). Calendar Spa
+preheat/start requests are the explicit exception (`9ca394e`): they always
+command Auto Heat on, even before `auto_heat_confirmed` is true. An accepted
+Auto Heat command is issued once and held pending until the Heater1 page
+confirms it, preventing repeated toggle keys.
 
 The WebUI globally disables navigation and semantic controls only while
 automation owns the PL-PLUS LCD menu, such as active VSP menu work, heater
@@ -395,8 +397,11 @@ curl -X POST http://127.0.0.1:8089/api/openclaw/spa \
 ```
 
 Activation requests Spa mode, Filter on, Aux2 heater relay on, and Auto Heat
-on. The software session has no timer; OpenClaw must stop it explicitly. The
-PL-PLUS Spa CountDn remains the independent hardware failsafe.
+on. Calendar Spa activation bypasses only the unconfirmed Auto Heat startup
+guard added in `3b254c6`, as fixed by `9ca394e`; WebUI, MQTT, manual, and Pool
+Heat requests still wait for Heater1 confirmation. The software session has no
+timer; OpenClaw must stop it explicitly. The PL-PLUS Spa CountDn remains the
+independent hardware failsafe.
 
 Calendar events may first arm the same stable session ID with an exact
 five-minute preparation window:
