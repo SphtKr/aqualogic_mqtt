@@ -300,6 +300,33 @@ class AutomationEngineTest(unittest.TestCase):
         self.assertEqual(equipment.calls, [])
         self.assertEqual(vsp.calls, [("adopt", "speed1", "schedule")])
 
+    def test_unconfirmed_non_calendar_auto_heat_request_is_skipped(self):
+        engine, equipment, _vsp = self.make_engine(["2026-06-27T16:00:00Z"])
+        engine.set_pool_heat(True)
+        engine.set_manual(mode="spa")
+        equipment.state.update({
+            "mode": "spa",
+            "auto_heat": False,
+            "auto_heat_confirmed": False,
+        })
+
+        self.assertFalse(engine.tick())
+        self.assertEqual(equipment.calls, [])
+        self.assertEqual(engine.status()["phase"], "converged")
+
+    def test_calendar_spa_auto_heat_request_bypasses_unconfirmed_guard(self):
+        engine, equipment, _vsp = self.make_engine(["2026-06-27T16:00:00Z"])
+        engine.activate_openclaw_spa(session_id="calendar-heat")
+        equipment.state.update({
+            "mode": "spa",
+            "auto_heat": False,
+            "auto_heat_confirmed": False,
+        })
+
+        self.assertTrue(engine.tick())
+        self.assertEqual(equipment.calls, [("auto_heat", True)])
+        self.assertEqual(engine.status()["phase"], "setting_auto_heat")
+
     def test_auto_heat_retry_waits_for_new_authoritative_observation(self):
         engine, equipment, vsp = self.make_engine(["2026-06-27T12:00:00Z"])
         equipment.state.update({

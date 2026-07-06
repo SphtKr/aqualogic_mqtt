@@ -220,6 +220,10 @@ def desired_state_dict(state: DesiredState) -> dict:
     return asdict(state)
 
 
+def _is_calendar_spa_auto_heat_request(desired: DesiredState) -> bool:
+    return desired.source == "calendar" and desired.session_phase == "spa"
+
+
 class AutomationEngine:
     """Persist desired inputs and reconcile one safe hardware action per tick."""
 
@@ -774,10 +778,14 @@ class AutomationEngine:
                 return False
 
             for name, target in desired.switches.items():
-                if name == "auto_heat" and not equipment.get("auto_heat_confirmed", True):
+                if (
+                    name == "auto_heat"
+                    and not equipment.get("auto_heat_confirmed", True)
+                    and not _is_calendar_spa_auto_heat_request(desired)
+                ):
                     # pyAqualogic assumes Auto Heat is on until it has parsed
                     # a Heater1 display page. Never turn that startup default
-                    # into a real HEATER_1 keypress.
+                    # into a real HEATER_1 keypress for non-calendar sources.
                     continue
                 retry_block = equipment.get("switch_retry_block") or {}
                 if (
